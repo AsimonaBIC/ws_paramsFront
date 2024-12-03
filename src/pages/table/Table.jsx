@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Cookies from 'js-cookie';
-import Modal from 'react-modal';
+import { Header, SubHeader, TableContainer, Program, ProgramHeader, ProgramTitle, Arrow, VersionText, ButtonGroup, EditButton, DeleteButton, ProgramDetails, Parameter, ParameterHeader, ParameterDetails, Value, InsertButton, UserInfo, ExitButton, modalStyles } from './TableStyles';
 import logo from '../../assets/logo.svg';
 import logo2 from '../../assets/logo2.png';
+import Modal from 'react-modal';
 //if (process.env.NODE_ENV !== 'test') Modal.setAppElement('#app');
-//Modal.setAppElement('#root');
+
 
 function Table() {
     const navigate = useNavigate();
@@ -24,14 +24,23 @@ function Table() {
     const [deleteModalIsOpen, setDeleteModalIsOpen] = useState(false);
     const [programToDelete, setProgramToDelete] = useState(null);
     const isAnyModalOpen = deleteModalIsOpen || showModal;
+    const [errorMessage, setErrorMessage] = useState(''); 
+    const [fetchError, setFetchError] = useState('');
+    const [deleteError, setDeleteError] = useState('');
 
     useEffect(() => {
         const userCookie = Cookies.get('user');
+        console.log('User cookie:', userCookie);
         if (!userCookie) {
             navigate('/');
         } else {
             try {
-                const user = JSON.parse(atob(userCookie.split('.')[1]));
+                const base64Url = userCookie.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                const user = JSON.parse(jsonPayload);
                 setUsername(user.name);
                 fetchPrograms();
             } catch (error) {
@@ -40,7 +49,7 @@ function Table() {
             }
         }
     }, [navigate]);
-    
+
     useEffect(() => {
         console.log('Programs state updated:', programs); 
     }, [programs]);
@@ -84,9 +93,16 @@ function Table() {
     
     const confirmDelete = async () => {
         if (programToDelete) {
-            await handleDelete(programToDelete.name);
-            closeDeleteModal();
-        }
+            setDeleteError('');
+            try {
+                await handleDelete(programToDelete.name);
+                closeDeleteModal();
+            } catch (error) {
+                console.error('Error deleting program:', error);
+                setDeleteError('Error deleting program');
+
+            }
+        };
     };
     
     const highlightText = (text, searchTerm) => {
@@ -96,13 +112,22 @@ function Table() {
     };
 
     const fetchPrograms = async () => {
+        setFetchError('');
         try {
             const response = await axios.get('http://localhost:3001/api/program', { withCredentials: true });
             console.log('Full response:', response); 
-            console.log('Fetched programs:', response.data.programs); 
-            setPrograms(response.data.programs);
+            if (response && response.data && response.data.programs) {
+                console.log('Fetched programs:', response.data.programs); 
+                setPrograms(response.data.programs);
+            } else {
+                console.error('Invalid response structure:', response);
+            }
         } catch (error) {
             console.error('Error fetching programs:', error);
+            setFetchError('Error fetching programs');
+            if (error.response) {
+                console.error('Error response data:', error.response.data);
+            }
         }
     };
 
@@ -158,14 +183,14 @@ function Table() {
     };
 
     const handleDelete = async (programName) => {
-        try {
-            await axios.delete(`http://localhost:3001/api/program/${programName}`, { withCredentials: true });
-            setPrograms(prevPrograms => prevPrograms.filter(program => program.name !== programName));
-        } catch (error) {
-            console.error('Error deleting program:', error);
-            alert(`Error deleting program: ${error.message}`);
-        }
-    };
+    try {
+        await axios.delete(`http://localhost:3001/api/program/${programName}`, { withCredentials: true });
+        setPrograms(prevPrograms => prevPrograms.filter(program => program.name !== programName));
+    } catch (error) {
+        console.error('Error deleting program:', error);
+        throw error;
+    }
+};
     
     const handleFormChange = (event) => {
         const { name, value } = event.target;
@@ -237,12 +262,19 @@ function Table() {
 
     const handleFormSubmit = async (event) => {
         event.preventDefault();
+        setErrorMessage('');
         try {
             if (modalType === 'insert') {
                 const payload = {
                     ...formData,
                     version: 1,
                 };
+    
+                const isDuplicate = programs.some(program => program.name === payload.name);
+                if (isDuplicate) {
+                    alert('A program with this name already exists. Please choose a different name.');
+                    return; 
+                }
     
                 const response = await axios.post(
                     'http://localhost:3001/api/program',
@@ -261,6 +293,7 @@ function Table() {
                 delete newProgram.Parameters;
     
                 setPrograms((prevPrograms) => [...prevPrograms, newProgram]);
+                await fetchPrograms(); 
             } else if (modalType === 'edit') {
                 const updatedProgram = {
                     ...formData,
@@ -301,6 +334,7 @@ function Table() {
             closeModal();
         } catch (error) {
             console.error('Error submitting form:', error);
+            setErrorMessage('Error creating program');
         }
     };
 
@@ -310,6 +344,7 @@ function Table() {
                 <Header>
                     <img src={logo} alt="Logo" className="logo" />
                     <div className="search-container">
+                    {fetchError && <div role="alert" style={{ color: 'red' }}>{fetchError}</div>} {}
                         <input
                             type="text"
                             className="search-input"
@@ -326,8 +361,12 @@ function Table() {
                     <h1>Parameters Repository</h1>
                 </SubHeader>
                 <TableContainer>
-                    <InsertButton onClick={handleInsert}>New Program</InsertButton>
-                    {filteredPrograms?.map(program => (
+                <InsertButton onClick={handleInsert}>New Program</InsertButton>
+                {}
+                {filteredPrograms.length === 0 ? (
+                    <div>No results found</div>
+                ) : (
+                    filteredPrograms.map(program => (
                         <Program key={program.name}>
                             <ProgramHeader>
                                 <ProgramTitle onClick={() => toggleProgram(program.name)}>
@@ -341,7 +380,7 @@ function Table() {
                                 </ProgramTitle>
                                 <ButtonGroup>
                                     <EditButton onClick={() => handleEdit(program)}>Edit</EditButton>
-                                    <DeleteButton name={"delete_button_program_" + program.name } onClick={() => openDeleteModal(program)}>Delete</DeleteButton>
+                                    <DeleteButton name={ program.name } onClick={() => openDeleteModal(program)}>Delete</DeleteButton>
                                 </ButtonGroup>
                             </ProgramHeader>
                             {expandedPrograms[program.name] && (
@@ -385,7 +424,8 @@ function Table() {
                                 </ProgramDetails>
                             )}
                         </Program>
-                    ))}
+                        ))
+                    )}
                 </TableContainer>
             </div>
             
@@ -398,8 +438,9 @@ function Table() {
     <h2>¿Estás seguro de eliminar el programa: {programToDelete?.name}?</h2>
     <p>El programa se eliminará permanentemente.</p>
     <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-        <button onClick={confirmDelete} style={{ padding: '10px 20px', backgroundColor: '#DC3545', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Eliminar</button>
-        <button onClick={closeDeleteModal} style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Cancelar</button>
+    {deleteError && <div role="alert" style={{ color: 'red' }}>{deleteError}</div>} {}
+        <button onClick={confirmDelete} data-testid="confirm-delete-button" style={{ padding: '10px 20px', backgroundColor: '#DC3545', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Eliminar</button>
+        <button onClick={closeDeleteModal} data-testid="cancel-delete-button" style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Cancelar</button>
     </div>
 </Modal>
 
@@ -410,6 +451,7 @@ function Table() {
     style={modalStyles}
 >
     <h2>{modalType.charAt(0).toUpperCase() + modalType.slice(1)} Program</h2>
+    {errorMessage && <div role="alert" style={{ color: 'red' }}>{errorMessage}</div>} {}
     <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
         <div onClick={() => toggleSection('program')} style={{ cursor: 'pointer' }}>
             <h3>Program Details {expandedSections.program ? '▼' : '▶'}</h3>
@@ -463,284 +505,12 @@ function Table() {
                 )}
             </div>
         ))}
-        <button type="submit" style={{ padding: '12px', backgroundColor: '#28A745', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', marginTop: '15px' }}>Submit</button>
+        <button type="submit" data-testid="submit-button" style={{ padding: '12px', backgroundColor: '#28A745', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', marginTop: '15px' }}>Submit</button>
     </form>
     <button onClick={closeModal} style={{ padding: '12px', backgroundColor: '#DC3545', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', marginTop: '15px' }}>Close</button>
 </Modal>
     </>
     );
 }
-
-const VersionText = styled.span`
-    font-size: 0.8rem;
-    color: #ccc;
-    padding: 0.5rem 1rem;
-`;
-
-const DeleteButton = styled.button`
-    padding: 0.5rem 1rem;
-    background-color: #EC122C; 
-    color: #fff;
-    border: none;
-    border-radius: 0.3rem;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: background-color 0.3s ease;
-    &:hover {
-        background-color: #DC143C; 
-    }
-    &:focus {
-        outline: none;
-    }
-`;
-
-const EditButton = styled.button`
-    padding: 0.5rem 1rem;
-    background-color: #6495ED;
-    color: #fff;
-    border: none;
-    border-radius: 0.3rem;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: background-color 0.3s ease;
-    &:hover {
-        background-color: #4495ED; 
-    }
-    &:focus {
-        outline: none;
-    }
-`;
-
-const InsertButton = styled.button`
-    position: absolute;
-    top: 1rem; 
-    right: 2rem; 
-    z-index: 2; 
-    padding: 0.5rem 1rem;
-    background-color: #28a745;
-    color: #fff;
-    border: none;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: background-color 0.3s ease;
-    &:hover {
-        background-color: #218838; 
-    }
-    &:focus {
-        outline: none;
-    }
-`;
-
-const UserInfo = styled.div`
-    color: white;
-    margin-right: 3rem;
-`;
-
-const modalStyles = {
-    overlay: {
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    content: {
-        backgroundColor: '#fff',
-        maxWidth: '800px',
-        maxHeight: '600px',
-        margin: 'auto',
-        border: 'none',
-        borderRadius: '10px',
-        padding: '20px',
-        boxShadow: '0 4px 10px rgba(0, 0, 0, 0.3)',
-        fontFamily: '"Funnel Sans", sans-serif',
-    },
-};
-
-const ExitButton = styled.button`
-    position: absolute;
-    top: 0.8rem;
-    right: 1rem;
-    background: transparent;
-    border: none;
-    color: white;
-    font-size: 1.2rem;
-    cursor: pointer;
-
-    &:hover {
-        opacity: 0.8;
-    }
-`;
-
-const Header = styled.div`
-    width: 100%;
-    background-color: black;
-    padding: 1rem 1rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    position: relative; 
-
-    .logo {
-        height: 1rem;
-    }
-
-    .search-container {
-        position: absolute;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 25%; 
-        display: flex;
-        justify-content: center;
-    }
-
-    .search-input {
-        width: 100%; 
-        padding: 0.2rem;
-        border: 1px solid #555;
-        border-radius: 0.5rem;
-        background-color: white;
-        color: black;
-        font-size: 1rem;
-    }
-`;
-
-const SubHeader = styled.div`
-    width: 100%;
-    background-color: #F19321;
-    padding: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-
-    .logo2 {
-        height: 2.5rem; 
-    }
-
-    h1 {
-        color: white;
-        font-size: 2rem;
-        margin: 0;
-    }
-`;
-
-const TableContainer = styled.div`
-    position: relative;
-    margin: 4rem auto;
-    padding: 2rem;
-    background-color: #7c7c7c;
-    border-radius: 2rem;
-    box-shadow: 0 12px 34px rgba(0, 0, 0, 1);
-    border: 0.2rem solid black;
-    max-width: 90%;
-    max-height: 70vh; 
-    overflow-y: auto;
-
-    &::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 100%;
-        height: 5rem;
-        background-color: black;
-        border-top-left-radius: 1.5rem;
-        border-top-right-radius: 1.5rem;
-    }
-
-    &::after {
-        content: '';
-        position: absolute;
-        top: 0.5rem;
-        left: 1rem;
-        width: 2.5rem;
-        height: 2.5rem;
-        background-color: #F19321;
-        border-radius: 50%;
-        z-index: 1;
-    }
-`;
-
-const Program = styled.div`
-    margin-bottom: 2rem;
-    padding: 0.5rem; 
-    border-radius: 0.5rem;
-    margin-top: 4rem;
-`;
-
-const ProgramHeader = styled.div`
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background-color: #4a4a4a;
-    color: white;
-    padding: 0.5rem 1rem; 
-    border-radius: 0.5rem;
-`;
-
-const ProgramTitle = styled.div`
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-
-    h2 {
-        margin: 0;
-        margin-right: 0.5rem;
-    }
-`;
-
-const ProgramDetails = styled.div`
-    margin-left: 1rem;
-    padding: 0.5rem;
-`;
-
-const Parameter = styled.div`
-    margin-left: 1rem;
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-`;
-
-const ParameterHeader = styled.div`
-    display: flex;
-    justify-content: space-between;
-    cursor: pointer;
-    background-color: #6a6a6a;
-    color: white;
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-`;
-
-const ParameterDetails = styled.div`
-    margin-left: 1rem;
-    padding: 0.5rem;
-    border-left: 2px solid #000;
-    background-color: #d0d0d0;
-`;
-
-const Value = styled.div`
-    margin-left: 2rem;
-    padding: 0.5rem;
-    border-left: 2px solid #000;
-    background-color: #d0d0d0;
-    border-radius: 0.5rem;
-`;
-
-const Arrow = styled.span`
-    font-size: 1.5rem;
-`;
-const styles = `
-    .highlight {
-        background-color: yellow;
-        color: black;
-        font-weight: bold;
-    }
-`;
-const ButtonGroup = styled.div`
-    display: flex;
-    gap: 0.5rem;
-`;
-document.head.insertAdjacentHTML('beforeend', `<style>${styles}</style>`);
 
 export default Table;
