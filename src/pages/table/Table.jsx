@@ -2,18 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Cookies from 'js-cookie';
-import { Header, SubHeader, TableContainer, Program, ProgramHeader, ProgramTitle, Arrow, VersionText, ButtonGroup, EditButton, DeleteButton, ProgramDetails, Parameter, ParameterHeader, ParameterDetails, Value, InsertButton, UserInfo, ExitButton, modalStyles } from './TableStyles';
+import { Header, SubHeader, TableContainer, ValueHeader, ValueDetails, Program, ProgramHeader, ProgramTitle, Arrow, VersionText, ButtonGroup, EditButton, DeleteButton, ProgramDetails, Parameter, ParameterHeader, ParameterDetails, Value, InsertButton, UserInfo, ExitButton, modalStyles } from './TableStyles';
 import logo from '../../assets/logo.svg';
 import logo2 from '../../assets/logo2.png';
 import Modal from 'react-modal';
-//if (process.env.NODE_ENV !== 'test') Modal.setAppElement('#app');
-
 
 function Table() {
     const navigate = useNavigate();
     const [programs, setPrograms] = useState([]);
     const [expandedPrograms, setExpandedPrograms] = useState({});
     const [expandedParameters, setExpandedParameters] = useState({});
+    const [expandedValues, setExpandedValues] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
     const [modalIsOpen, setModalIsOpen] = useState(false);
     const [modalType, setModalType] = useState('');
@@ -50,9 +49,22 @@ function Table() {
         }
     }, [navigate]);
 
-    useEffect(() => {
-        console.log('Programs state updated:', programs); 
-    }, [programs]);
+    const handleToggleJsonEditor = (paramIndex, valueIndex) => {
+        const updatedParameters = [...(formData.parameters || [])];
+        const updatedValues = [...(updatedParameters[paramIndex].values || [])];
+    
+        updatedValues[valueIndex] = {
+            ...updatedValues[valueIndex],
+            isJsonEditorEnabled: !updatedValues[valueIndex].isJsonEditorEnabled,
+        };
+        updatedParameters[paramIndex] = { ...updatedParameters[paramIndex], values: updatedValues };
+    
+        setFormData((prevState) => ({
+            ...prevState,
+            parameters: updatedParameters,
+        }));
+    };
+    
 
     const filteredPrograms = programs.map(program => {
         const filteredParameters = program.parameters?.map(param => {
@@ -260,6 +272,16 @@ function Table() {
         }));
     };
 
+    const toggleValueSection = (paramIndex, valueIndex) => {
+        setExpandedValues((prevState) => ({
+            ...prevState,
+            [paramIndex]: {
+                ...prevState[paramIndex],
+                [valueIndex]: !prevState[paramIndex]?.[valueIndex]
+            }
+        }));
+    };
+
     const handleFormSubmit = async (event) => {
         event.preventDefault();
         setErrorMessage('');
@@ -361,86 +383,92 @@ function Table() {
                     <h1>Parameters Repository</h1>
                 </SubHeader>
                 <TableContainer>
-                <InsertButton onClick={handleInsert}>New Program</InsertButton>
-                {}
-                {filteredPrograms.length === 0 ? (
-                    <div>No results found</div>
-                ) : (
-                    filteredPrograms.map(program => (
-                        <Program key={program.name}>
-                            <ProgramHeader>
-                                <ProgramTitle onClick={() => toggleProgram(program.name)}>
-                                    <h2
+    <InsertButton onClick={handleInsert}>New Program</InsertButton>
+    {filteredPrograms.length === 0 ? (
+        <div>No results found</div>
+    ) : (
+        filteredPrograms.map(program => (
+            <Program key={program.name}>
+                <ProgramHeader>
+                    <ProgramTitle onClick={() => toggleProgram(program.name)}>
+                        <h2
+                            dangerouslySetInnerHTML={{
+                                __html: highlightText(program.name, searchTerm)
+                            }}
+                        />
+                        <Arrow>{expandedPrograms[program.name] ? '▼' : '▶'}</Arrow>
+                        <VersionText>v{program.version}</VersionText>
+                    </ProgramTitle>
+                    <ButtonGroup>
+                        <EditButton onClick={() => handleEdit(program)}>Edit</EditButton>
+                        <DeleteButton name={program.name} onClick={() => openDeleteModal(program)}>Delete</DeleteButton>
+                    </ButtonGroup>
+                </ProgramHeader>
+                {expandedPrograms[program.name] && (
+                    <ProgramDetails>
+                        {program.parameters?.map((param, paramIndex) => (
+                            <Parameter key={param.name}>
+                                <ParameterHeader onClick={() => toggleParameter(program.name, param.name)}>
+                                    <h3
                                         dangerouslySetInnerHTML={{
-                                            __html: highlightText(program.name, searchTerm)
+                                            __html: highlightText(param.name, searchTerm)
                                         }}
                                     />
-                                    <Arrow>{expandedPrograms[program.name] ? '▼' : '▶'}</Arrow>
-                                    <VersionText>v{program.version}</VersionText>
-                                </ProgramTitle>
-                                <ButtonGroup>
-                                    <EditButton onClick={() => handleEdit(program)}>Edit</EditButton>
-                                    <DeleteButton name={ program.name } onClick={() => openDeleteModal(program)}>Delete</DeleteButton>
-                                </ButtonGroup>
-                            </ProgramHeader>
-                            {expandedPrograms[program.name] && (
-                                <ProgramDetails>
-                                    {program.parameters?.map(param => (
-                                        <Parameter key={param.name}>
-                                            <ParameterHeader onClick={() => toggleParameter(program.name, param.name)}>
-                                                <h3
-                                                    dangerouslySetInnerHTML={{
-                                                        __html: highlightText(param.name, searchTerm)
-                                                    }}
-                                                />
-                                                <Arrow>{expandedParameters[program.name]?.[param.name] ? '▼' : '▶'}</Arrow>
-                                            </ParameterHeader>
-                                            {expandedParameters[program.name]?.[param.name] && (
-                                                <ParameterDetails>
-                                                    <p
-                                                        dangerouslySetInnerHTML={{
-                                                            __html: highlightText(param.description, searchTerm)
-                                                        }}
-                                                    />
-                                                    <p>Ciphered: {param.ciphered ? 'Yes' : 'No'}</p>
-                                                    {param.values?.map(value => (
-                                                        <Value key={value.environment}>
-                                                            <p
-                                                                dangerouslySetInnerHTML={{
-                                                                    __html: highlightText(value.environment, searchTerm)
-                                                                }}
-                                                            />
-                                                            <p
-                                                                dangerouslySetInnerHTML={{
-                                                                    __html: highlightText(JSON.stringify(value.value), searchTerm)
-                                                                }}
-                                                            />
-                                                        </Value>
-                                                    ))}
-                                                </ParameterDetails>
-                                            )}
-                                        </Parameter>
-                                    ))}
-                                </ProgramDetails>
-                            )}
-                        </Program>
-                        ))
-                    )}
-                </TableContainer>
-            </div>
+                                    <Arrow>{expandedParameters[program.name]?.[param.name] ? '▼' : '▶'}</Arrow>
+                                </ParameterHeader>
+                                {expandedParameters[program.name]?.[param.name] && (
+                                    <ParameterDetails>
+                                        <p>
+                                            <strong>Description:</strong>
+                                            <span dangerouslySetInnerHTML={{ __html: highlightText(param.description, searchTerm) }} />
+                                        </p>
+                                        <p><strong>Ciphered:</strong> {param.ciphered ? 'Yes' : 'No'}</p>
+                                        {param.values?.map((value, valueIndex) => (
+                                            <Value key={value.environment}>
+                                                <ValueHeader onClick={() => toggleValueSection(paramIndex, valueIndex)}>
+                                                    <p>
+                                                        <strong>Environment:</strong>
+                                                        <span dangerouslySetInnerHTML={{ __html: highlightText(value.environment, searchTerm) }} />
+                                                    </p>
+                                                    <Arrow>
+                                                        {expandedValues[paramIndex]?.[valueIndex] ? '▼' : '▶'}
+                                                    </Arrow>
+                                                </ValueHeader>
+                                                {expandedValues[paramIndex]?.[valueIndex] && (
+                                                    <ValueDetails>
+                                                        <p>
+                                                            <strong>Value:</strong>
+                                                            <span dangerouslySetInnerHTML={{ __html: highlightText(JSON.stringify(value.value), searchTerm) }} />
+                                                        </p>
+                                                    </ValueDetails>
+                                                )}
+                                            </Value>
+                                        ))}
+                                    </ParameterDetails>
+                                )}
+                            </Parameter>
+                        ))}
+                    </ProgramDetails>
+                )}
+            </Program>
+        ))
+    )}
+</TableContainer>
+</div>
             
 <Modal
     isOpen={deleteModalIsOpen}
     onRequestClose={closeDeleteModal}
     contentLabel="Delete Confirmation"
+    ariaHideApp={false}
     style={modalStyles}
 >
     <h2>¿Estás seguro de eliminar el programa: {programToDelete?.name}?</h2>
     <p>El programa se eliminará permanentemente.</p>
     <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
     {deleteError && <div role="alert" style={{ color: 'red' }}>{deleteError}</div>} {}
-        <button onClick={confirmDelete} data-testid="confirm-delete-button" style={{ padding: '10px 20px', backgroundColor: '#DC3545', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Eliminar</button>
-        <button onClick={closeDeleteModal} data-testid="cancel-delete-button" style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Cancelar</button>
+        <button onClick={confirmDelete} data-testid="confirm-delete-button" style={{ padding: '10px 20px', backgroundColor: '#DC3545', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Delete</button>
+        <button onClick={closeDeleteModal} data-testid="cancel-delete-button" style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Close</button>
     </div>
 </Modal>
 
@@ -448,6 +476,7 @@ function Table() {
     isOpen={modalIsOpen}
     onRequestClose={closeModal}
     contentLabel="Program Modal"
+    ariaHideApp={false}
     style={modalStyles}
 >
     <h2>{modalType.charAt(0).toUpperCase() + modalType.slice(1)} Program</h2>
@@ -472,7 +501,7 @@ function Table() {
         {formData.parameters?.map((param, paramIndex) => (
             <div key={paramIndex} style={{ marginTop: '15px', border: '1px solid #ccc', padding: '15px', borderRadius: '5px', backgroundColor: '#f9f9f9' }}>
                 <div onClick={() => toggleParameterSection(paramIndex)} style={{ cursor: 'pointer' }}>
-                    <h4>Parameter {paramIndex + 1} {expandedSections.parameters[paramIndex] ? '▼' : '▶'}</h4>
+                    <h4>{param.name} {expandedSections.parameters[paramIndex] ? '▼' : '▶'}</h4>
                 </div>
                 {expandedSections.parameters[paramIndex] && (
                     <>
@@ -496,9 +525,52 @@ function Table() {
                                     <input type="text" name="environment" value={value.environment} onChange={(e) => handleValueChange(paramIndex, valueIndex, e)} required style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }} />
                                 </label>
                                 <label>
-                                    Value:
-                                    <input type="text" name="value" value={value.value} onChange={(e) => handleValueChange(paramIndex, valueIndex, e)} required style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }} />
-                                </label>
+                            Value:
+                            {!value.isJsonEditorEnabled ? (
+                                <>
+                                    <input
+                                        type="text"
+                                        name="value"
+                                        value={typeof value.value === 'string' ? value.value : JSON.stringify(value.value, null, 2)}
+                                        onChange={(e) => handleValueChange(paramIndex, valueIndex, e)}
+                                        required
+                                        style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }}
+                                    />
+                                    <div style={{ display: 'flex', alignItems: 'center', marginTop: '10px' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={value.isJsonEditorEnabled || false}
+                                            onChange={() => handleToggleJsonEditor(paramIndex, valueIndex)}
+                                        />
+                                        <span style={{ marginLeft: '5px' }}>Enable JSON Editor</span>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <textarea
+                                        name="value"
+                                        value={typeof value.value === 'string' ? value.value : JSON.stringify(value.value, null, 2)}
+                                        onChange={(e) => handleValueChange(paramIndex, valueIndex, e, true)}
+                                        style={{
+                                            width: '100%',
+                                            height: '150px',
+                                            padding: '10px',
+                                            borderRadius: '5px',
+                                            border: '1px solid #ccc',
+                                            fontFamily: 'monospace',
+                                        }}
+                                    />
+                                    <div style={{ display: 'flex', alignItems: 'center', marginTop: '10px' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={value.isJsonEditorEnabled || false}
+                                            onChange={() => handleToggleJsonEditor(paramIndex, valueIndex)}
+                                        />
+                                        <span style={{ marginLeft: '5px' }}>Disable JSON Editor</span>
+                                    </div>
+                                </>
+                            )}
+                        </label>
                             </div>
                         ))}
                     </>

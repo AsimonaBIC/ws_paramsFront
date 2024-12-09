@@ -176,7 +176,7 @@ export const TableContainer = styled.div`
         height: 5rem;
         background-color: black;
         border-top-left-radius: 1.5rem;
-        border-top-right-radius: 1.5rem;
+        border-top-right-radius: 0.5rem;
     }
 
     &::after {
@@ -241,19 +241,59 @@ export const ParameterHeader = styled.div`
     border-radius: 0.5rem;
 `;
 
-export const ParameterDetails = styled.div`
-    margin-left: 1rem;
-    padding: 0.5rem;
-    border-left: 2px solid #000;
-    background-color: #d0d0d0;
+export const Value = styled.div`
+  display: flex;
+  flex-direction: column;
+  margin-left: 2rem;
+  padding: 0.5rem;
+  border-left: 2px solid #000;
+  background-color: #d0d0d0;
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+
+  &:not(:last-child) {
+    border-bottom: 1px solid #000;
+  }
+
+  p {
+    margin: 0.5rem 0;
+  }
 `;
 
-export const Value = styled.div`
-    margin-left: 2rem;
+export const ValueHeader = styled.div`
+    display: flex;
+    justify-content: space-between;
+    cursor: pointer;
+    background-color: #6a6a6a;
+    color: white;
     padding: 0.5rem;
-    border-left: 2px solid #000;
-    background-color: #d0d0d0;
     border-radius: 0.5rem;
+`;
+
+export const ParameterDetails = styled.div`
+  margin-left: 1rem;
+  padding: 0.5rem;
+  border-left: 2px solid #000;
+  background-color: #d0d0d0;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+
+  p {
+    margin: 0.5rem 0;
+  }
+`;
+
+export const ValueDetails = styled.div`
+  margin-left: 1rem;
+  padding: 0.5rem;
+  border-left: 2px solid #000;
+  background-color: #d0d0d0;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+
+  p {
+    margin: 0.5rem 0;
+  }
 `;
 
 export const Arrow = styled.span`
