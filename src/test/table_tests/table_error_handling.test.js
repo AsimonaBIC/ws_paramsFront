@@ -20,7 +20,7 @@ jest.mock('axios');
 
 const mockNavigate = jest.fn();
 
-describe("Table Component", () => {
+describe("Table Error Handling Test", () => {
     beforeEach(() => {
         require('react-router-dom').useNavigate.mockReturnValue(mockNavigate);
         mockNavigate.mockReset();
